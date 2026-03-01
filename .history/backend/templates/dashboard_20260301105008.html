@@ -172,27 +172,21 @@
             document.getElementById('total-cost-display').innerText = selectedProduct.price * qty;
         }
 
-        // Socket logic - Updated to push UID and balance automatically
+        // Socket logic
         socket.on('update_ui', (data) => {
             document.getElementById('admin-uid').innerText = data.uid;
             document.getElementById('pay-uid').innerText = data.uid;
             document.getElementById('admin-prev-balance').innerText = data.balance.toLocaleString() + " RWF";
-            
-            // Only add to ledger if it's a Top-up or Payment transaction
-            if (data.type === 'TOP-UP' || data.type === 'PAYMENT') {
-                addToLedger(data);
-            }
+            if (data.type) addToLedger(data);
         });
 
         async function handleTransaction(endpoint, inputId, uidId) {
             const uid = document.getElementById(uidId).innerText;
             const inputEl = document.getElementById(inputId);
+            const amountVal = inputEl.value || inputEl.innerText;
             
-            // Handle both input fields (topup) and span text (payment)
-            const amountVal = inputEl.value !== undefined ? inputEl.value : inputEl.innerText;
-            
-            if (uid === "--- --- ---" || !amountVal || parseInt(amountVal) <= 0) {
-                alert("🚨 Please scan card & select product/amount!");
+            if (uid === "--- --- ---" || !amountVal || amountVal <= 0) {
+                alert("Scan card & select a product first!");
                 return;
             }
 
@@ -203,22 +197,16 @@
                     body: JSON.stringify({ uid: uid, amount: parseInt(amountVal) })
                 });
                 const res = await response.json();
-                
-                if (response.ok) {
-                    alert(`✅ Transaction Success! New Balance: ${res.new_balance} RWF`);
-                } else {
-                    alert(`❌ Error: ${res.error}`);
-                }
-            } catch (err) { 
-                alert("📡 Connection error: Check if backend is running."); 
-            }
+                if (response.ok) alert(`Success! New Balance: ${res.new_balance} RWF`);
+                else alert(`Error: ${res.error}`);
+            } catch (err) { alert("Backend unreachable."); }
         }
 
         function addToLedger(data) {
             const row = document.createElement('tr');
             row.className = `border-b border-white/5 ${data.type === 'TOP-UP' ? "text-indigo-400" : "text-cyan-400"}`;
             row.innerHTML = `
-                <td class="py-3 opacity-50">${data.time || new Date().toLocaleTimeString()}</td>
+                <td class="py-3 opacity-50">${new Date().toLocaleTimeString()}</td>
                 <td class="py-3 font-bold">${data.type}</td>
                 <td class="py-3">${data.uid}</td>
                 <td class="py-3 text-right">${data.type === 'TOP-UP' ? '+' : '-'}${data.amount}</td>
