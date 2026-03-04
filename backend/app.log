@@ -1,0 +1,6 @@
+2026-03-04 13:03:59,512 INFO: RFID Nexus System startup [in C:\Users\HP\Desktop\ishara\python\Payment\backend\app.py:50]
+2026-03-04 13:04:00,192 INFO: MQTT Connected to broker: broker.benax.rw [in C:\Users\HP\Desktop\ishara\python\Payment\backend\app.py:61]
+2026-03-04 13:04:02,371 INFO: RFID Nexus System startup [in C:\Users\HP\Desktop\ishara\python\Payment\backend\app.py:50]
+2026-03-04 13:04:02,891 INFO: MQTT Connected to broker: broker.benax.rw [in C:\Users\HP\Desktop\ishara\python\Payment\backend\app.py:61]
+2026-03-04 13:13:45,579 INFO: MQTT Connected to broker: broker.benax.rw [in C:\Users\HP\Desktop\ishara\python\Payment\backend\app.py:61]
+2026-03-04 13:13:49,910 INFO: MQTT Connected to broker: broker.benax.rw [in C:\Users\HP\Desktop\ishara\python\Payment\backend\app.py:61]

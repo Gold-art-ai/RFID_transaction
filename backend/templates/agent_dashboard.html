@@ -94,7 +94,7 @@
     </main>
 
     <script>
-        const socket = io(`http://${window.location.hostname}:5001`);
+        const socket = io(`http://${window.location.hostname}:9232`);
 
         socket.on('update_ui', (data) => {
             document.getElementById('admin-uid').innerText = data.uid;
@@ -112,7 +112,7 @@
             }
 
             try {
-                const response = await fetch(`http://${window.location.hostname}:5001${endpoint}`, {
+                const response = await fetch(`http://${window.location.hostname}:9232${endpoint}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ uid: uid, amount: parseInt(amountVal) })

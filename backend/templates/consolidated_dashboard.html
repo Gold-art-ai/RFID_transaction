@@ -72,28 +72,54 @@
             </div>
             <div class="bg-black/40 border border-white/10 rounded-2xl p-6 relative overflow-hidden">
                 <div class="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
-                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Live Transactions Today
-                </h3>
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Transactions (All
+                    Time)</h3>
                 <p id="stat-txns" class="text-3xl font-black text-white mono">0</p>
             </div>
         </div>
 
-        <div class="neon-border-white glass-dark rounded-[2rem] p-8 shadow-2xl">
+        <!-- Registered Cards Panel -->
+        <div class="neon-border-white glass-dark rounded-[2rem] p-8 shadow-2xl mb-8">
             <div class="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
-                <div class="p-2 bg-white/10 rounded-lg"><svg class="w-6 h-6 text-slate-300" fill="none"
-                        stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                            d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                        </path>
-                    </svg></div>
-                <h3 class="text-xl font-bold text-white tracking-wide">Live Transaction Ledger</h3>
+                <div class="p-2 bg-white/10 rounded-lg">
+                    <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-white tracking-wide">Registered RFID Cards</h3>
+                <span id="cards-count" class="ml-2 text-xs mono bg-white/10 px-2 py-0.5 rounded-full text-slate-400">0
+                    cards</span>
+            </div>
+            <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div class="text-slate-600 text-xs mono text-center py-6 col-span-full">Loading cards...</div>
+            </div>
+        </div>
+
+        <!-- Full Ledger -->
+        <div class="neon-border-white glass-dark rounded-[2rem] p-8 shadow-2xl">
+            <div class="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-white/10 rounded-lg">
+                        <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white tracking-wide">Full Transaction Ledger</h3>
+                </div>
+                <button onclick="loadData()"
+                    class="text-xs mono text-slate-400 hover:text-white bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors uppercase tracking-widest">↻
+                    Refresh</button>
             </div>
 
             <div class="overflow-x-auto">
                 <table class="w-full text-left mono text-sm">
                     <thead class="text-slate-400 border-b border-white/10 text-xs uppercase tracking-widest">
                         <tr>
-                            <th class="pb-3 pl-2">Time</th>
+                            <th class="pb-3 pl-2">#</th>
+                            <th class="pb-3">Timestamp</th>
                             <th class="pb-3">Type</th>
                             <th class="pb-3">Card UID</th>
                             <th class="pb-3 text-right">Amount (RWF)</th>
@@ -101,9 +127,8 @@
                         </tr>
                     </thead>
                     <tbody id="ledger-body">
-                        <!-- Initial state empty -->
                         <tr class="text-slate-600 text-center" id="empty-state">
-                            <td colspan="5" class="py-12 text-xs">Waiting for live transactions...</td>
+                            <td colspan="6" class="py-12 text-xs">Loading data from database...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -112,51 +137,105 @@
     </main>
 
     <script>
-        const socket = io(`http://${window.location.hostname}:5001`);
-
+        const socket = io(`http://${window.location.hostname}:9232`);
         let stats = { topups: 0, sales: 0, count: 0 };
 
-        socket.on('update_ui', (data) => {
-            if (data.type === 'TOP-UP' || data.type === 'PAYMENT') {
-                document.getElementById('empty-state')?.remove();
+        async function loadData() {
+            try {
+                const res = await fetch(`http://${window.location.hostname}:9232/api/all_data`);
+                const data = await res.json();
+                if (data.error) { console.error('API Error:', data.error); return; }
 
-                stats.count++;
-                if (data.type === 'TOP-UP') stats.topups += data.amount;
-                if (data.type === 'PAYMENT') stats.sales += data.amount;
+                // Recalculate stats from scratch
+                stats = { topups: 0, sales: 0, count: data.transactions.length };
+                for (const t of data.transactions) {
+                    if (t.type === 'TOP-UP') stats.topups += t.amount;
+                    if (t.type === 'PAYMENT') stats.sales += t.amount;
+                }
+                updateStatDisplays();
 
-                document.getElementById('stat-topups').innerHTML = `${stats.topups.toLocaleString()} <span class="text-sm text-indigo-400">RWF</span>`;
-                document.getElementById('stat-sales').innerHTML = `${stats.sales.toLocaleString()} <span class="text-sm text-cyan-400">RWF</span>`;
-                document.getElementById('stat-txns').innerText = stats.count;
+                // Rebuild ledger (newest first — API returns desc so just append)
+                const tbody = document.getElementById('ledger-body');
+                tbody.innerHTML = '';
+                if (data.transactions.length === 0) {
+                    tbody.innerHTML = '<tr class="text-slate-600 text-center"><td colspan="6" class="py-12 text-xs">No transactions in database yet.</td></tr>';
+                } else {
+                    for (const t of data.transactions) {
+                        appendLedgerRow({ id: t.id, uid: t.uid, amount: t.amount, type: t.type, time: t.timestamp });
+                    }
+                }
 
-                addToLedger(data);
+                // Rebuild cards panel
+                const cardsGrid = document.getElementById('cards-grid');
+                cardsGrid.innerHTML = '';
+                if (data.cards.length === 0) {
+                    cardsGrid.innerHTML = '<div class="text-slate-600 text-xs mono text-center py-6 col-span-full">No cards registered yet.</div>';
+                } else {
+                    document.getElementById('cards-count').innerText = `${data.cards.length} card${data.cards.length !== 1 ? 's' : ''}`;
+                    for (const c of data.cards) {
+                        const el = document.createElement('div');
+                        el.id = `card-${c.uid}`;
+                        el.className = 'bg-black/40 border border-white/10 rounded-2xl p-4 space-y-2 hover:bg-white/5 transition-colors';
+                        el.innerHTML = `
+                            <p class="text-[10px] mono text-slate-500 uppercase tracking-widest">Card UID</p>
+                            <p class="text-sm font-bold text-white truncate mono">${c.uid}</p>
+                            <div class="border-t border-white/5 pt-2 flex justify-between items-center">
+                                <span class="text-[10px] text-slate-500 uppercase">Balance</span>
+                                <span class="text-base font-black text-emerald-400 mono" id="bal-${c.uid}">${c.balance.toLocaleString()} <span class="text-[10px] font-normal">RWF</span></span>
+                            </div>
+                            <p class="text-[9px] text-slate-600 mono">Last seen: ${c.last_seen}</p>
+                        `;
+                        cardsGrid.appendChild(el);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load data from /api/all_data:', err);
             }
-        });
+        }
 
-        function addToLedger(data) {
+        function updateStatDisplays() {
+            document.getElementById('stat-topups').innerHTML = `${stats.topups.toLocaleString()} <span class="text-sm text-indigo-400">RWF</span>`;
+            document.getElementById('stat-sales').innerHTML = `${stats.sales.toLocaleString()} <span class="text-sm text-cyan-400">RWF</span>`;
+            document.getElementById('stat-txns').innerText = stats.count;
+        }
+
+        function appendLedgerRow(data) {
+            const tbody = document.getElementById('ledger-body');
             const row = document.createElement('tr');
-            row.className = `border-b border-white/5 transition-all duration-500 hover:bg-white/5 ${data.type === 'TOP-UP' ? "text-indigo-300" : "text-cyan-300"}`;
-
-            const typePillClass = data.type === 'TOP-UP'
+            row.className = `border-b border-white/5 hover:bg-white/5 transition-colors ${data.type === 'TOP-UP' ? "text-indigo-300" : "text-cyan-300"}`;
+            const pill = data.type === 'TOP-UP'
                 ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400'
                 : 'bg-cyan-500/20 border-cyan-500/30 text-cyan-400';
-
-            const amountPrefix = data.type === 'TOP-UP' ? '+' : '-';
-
+            const sign = data.type === 'TOP-UP' ? '+' : '-';
             row.innerHTML = `
-                <td class="py-4 pl-2 opacity-60 text-xs">${data.time || new Date().toLocaleTimeString()}</td>
-                <td class="py-4"><span class="px-2 py-1 border rounded text-[10px] font-bold ${typePillClass}">${data.type}</span></td>
-                <td class="py-4 font-bold tracking-wider">${data.uid}</td>
-                <td class="py-4 text-right font-black text-[15px]">${amountPrefix}${data.amount.toLocaleString()}</td>
-                <td class="py-4 text-right pr-2"><div class="inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400 text-[10px] font-bold">SUCCESS</span></div></td>
+                <td class="py-3 pl-2 opacity-40 text-xs">${data.id || '-'}</td>
+                <td class="py-3 opacity-60 text-xs">${data.time}</td>
+                <td class="py-3"><span class="px-2 py-1 border rounded text-[10px] font-bold ${pill}">${data.type}</span></td>
+                <td class="py-3 font-bold tracking-wider text-xs">${data.uid}</td>
+                <td class="py-3 text-right font-black text-[15px]">${sign}${data.amount.toLocaleString()}</td>
+                <td class="py-3 text-right pr-2"><div class="inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400 text-[10px] font-bold">SUCCESS</span></div></td>
             `;
-            document.getElementById('ledger-body').prepend(row);
+            tbody.appendChild(row);
         }
+
+        // Live socket: when a new transaction happens, reload the whole page data so DB is source of truth
+        socket.on('update_ui', (data) => {
+            if (data.type !== 'TOP-UP' && data.type !== 'PAYMENT') return;
+            // Update card balance immediately in the UI for responsiveness
+            const balEl = document.getElementById(`bal-${data.uid}`);
+            if (balEl) balEl.innerHTML = `${data.balance.toLocaleString()} <span class="text-[10px] font-normal">RWF</span>`;
+            // Then reload full data after a short delay to get the new row from DB
+            setTimeout(loadData, 800);
+        });
 
         socket.on('connect', () => {
             document.getElementById('conn-status-dot').className = "w-2 h-2 bg-slate-200 rounded-full";
             document.getElementById('conn-status-text').innerText = "System Live";
             document.getElementById('conn-status-text').className = "text-[10px] font-bold text-slate-300";
         });
+
+        // Seed from DB immediately on page load
+        loadData();
     </script>
 </body>
 

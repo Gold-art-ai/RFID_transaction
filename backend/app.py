@@ -235,4 +235,4 @@ def all_data():
 if __name__ == '__main__':
     # Note: The development server with debug=True is not suitable for a production deployment.
     # Use a production-grade WSGI server like Gunicorn.
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=9232, debug=True, allow_unsafe_werkzeug=True)
