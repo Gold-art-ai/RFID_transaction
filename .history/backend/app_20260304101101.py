@@ -58,6 +58,7 @@ TOPIC_TOPUP = f"rfid/{TEAM_ID}/card/topup"
 
 # --- MQTT LOGIC ---
 def on_connect(client, userdata, flags, rc):
+    print(f"[*] MQTT Connected to: {MQTT_BROKER}")
     app.logger.info(f"MQTT Connected to broker: {MQTT_BROKER}")
     client.subscribe(TOPIC_STATUS)
 
@@ -84,6 +85,7 @@ def on_message(client, userdata, msg):
                     "time": datetime.now().strftime("%H:%M:%S")
                 })
         except Exception as e:
+            print(f"[!] MQTT Error: {e}")
             # Log the full error details to the log file for debugging
             app.logger.error(f"MQTT Error processing message from topic {msg.topic}: {e}", exc_info=True)
 
@@ -226,6 +228,7 @@ def all_data():
 
         return jsonify({"transactions": transactions_data, "cards": cards_data})
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
         # Log the detailed error for the developer
         app.logger.error(f"Error in /api/all_data endpoint: {e}", exc_info=True)
         # Return a generic error to the client

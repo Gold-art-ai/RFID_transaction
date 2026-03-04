@@ -5,8 +5,6 @@ from flask_sqlalchemy import SQLAlchemy
 import paho.mqtt.client as mqtt
 import json
 from datetime import datetime
-import logging
-from logging.handlers import RotatingFileHandler
 import os
 
 app = Flask(__name__, template_folder='templates')
@@ -37,18 +35,6 @@ class Transaction(db.Model):
 with app.app_context():
     db.create_all()
 
-# --- LOGGING CONFIGURATION ---
-# Set up a rotating log handler to ensure issues are recorded in a file.
-log_file = 'app.log'
-# Creates a new log file when the current one reaches 10MB, keeping up to 5 old files.
-file_handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024 * 10, backupCount=5)
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-))
-app.logger.addHandler(file_handler)
-app.logger.setLevel(logging.INFO)
-app.logger.info('RFID Nexus System startup')
-
 # --- CONFIGURATION ---
 TEAM_ID = "team_pixel"
 MQTT_BROKER = "broker.benax.rw"
@@ -58,7 +44,7 @@ TOPIC_TOPUP = f"rfid/{TEAM_ID}/card/topup"
 
 # --- MQTT LOGIC ---
 def on_connect(client, userdata, flags, rc):
-    app.logger.info(f"MQTT Connected to broker: {MQTT_BROKER}")
+    print(f"[*] MQTT Connected to: {MQTT_BROKER}")
     client.subscribe(TOPIC_STATUS)
 
 def on_message(client, userdata, msg):
@@ -84,8 +70,7 @@ def on_message(client, userdata, msg):
                     "time": datetime.now().strftime("%H:%M:%S")
                 })
         except Exception as e:
-            # Log the full error details to the log file for debugging
-            app.logger.error(f"MQTT Error processing message from topic {msg.topic}: {e}", exc_info=True)
+            print(f"[!] MQTT Error: {e}")
 
 mqtt_client = mqtt.Client()
 mqtt_client.on_connect = on_connect
@@ -226,13 +211,8 @@ def all_data():
 
         return jsonify({"transactions": transactions_data, "cards": cards_data})
     except Exception as e:
-        # Log the detailed error for the developer
-        app.logger.error(f"Error in /api/all_data endpoint: {e}", exc_info=True)
-        # Return a generic error to the client
-        return jsonify({"error": "An internal server error occurred. Please check server logs."}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
-    # Note: The development server with debug=True is not suitable for a production deployment.
-    # Use a production-grade WSGI server like Gunicorn.
     socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)

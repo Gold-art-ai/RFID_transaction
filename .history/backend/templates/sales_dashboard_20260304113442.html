@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RFID Nexus | Sales Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap"
+        rel="stylesheet">
+    <!-- html2canvas and jspdf for downloading receipt -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #05070a;
+            color: #cbd5e1;
+        }
+
+        .neon-border-cyan {
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+            border: 1px solid rgba(34, 211, 238, 0.4);
+        }
+
+        .neon-text-cyan {
+            text-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+            color: #22d3ee;
+        }
+
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .product-grid::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .product-grid::-webkit-scrollbar-thumb {
+            background: rgba(34, 211, 238, 0.3);
+            border-radius: 10px;
+        }
+
+        .product-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .product-card:hover {
+            background: rgba(34, 211, 238, 0.1);
+            border-color: rgba(34, 211, 238, 0.4);
+            transform: translateY(-4px);
+        }
+
+        .product-card.selected {
+            border-color: #22d3ee;
+            background: rgba(34, 211, 238, 0.15);
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen pb-10">
+
+    <div
+        class="w-full bg-slate-900/50 border-b border-white/5 py-3 px-6 flex justify-between items-center backdrop-blur-md sticky top-0 z-50">
+        <div class="flex items-center gap-4">
+            <h1 class="text-lg font-black tracking-tighter text-white">RFID<span
+                    class="neon-text-cyan italic">PIXEL</span></h1>
+            <span
+                class="text-[10px] mono text-slate-500 uppercase tracking-widest bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20 text-cyan-400">Sales
+                Console</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full border border-white/5">
+                <span id="conn-status-dot" class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <span id="conn-status-text"
+                    class="text-[10px] font-bold uppercase tracking-widest text-red-500">Offline</span>
+            </div>
+            <a href="/"
+                class="text-xs font-bold text-slate-400 hover:text-white transition-colors bg-white/5 px-4 py-1.5 rounded-full border border-white/10 hover:bg-white/10 uppercase tracking-widest">Logout</a>
+        </div>
+    </div>
+
+    <main class="container mx-auto px-6 py-8 max-w-5xl">
+        <section class="neon-border-cyan glass-dark p-8 rounded-[2rem] space-y-8">
+            <div class="flex justify-between items-center border-b border-white/5 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-cyan-500/20 rounded-lg"><svg class="w-6 h-6 text-cyan-400" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z">
+                            </path>
+                        </svg></div>
+                    <h2 class="text-2xl font-bold text-white">Point of Sale</h2>
+                </div>
+                <div class="text-right bg-black/30 px-6 py-2 rounded-xl border border-white/5">
+                    <span class="text-[10px] mono text-slate-500 block mb-1">DUE FROM CARD</span>
+                    <span id="total-cost-display" class="text-3xl font-black neon-text-cyan">0</span><span
+                        class="text-sm ml-1 text-cyan-400 font-bold">RWF</span>
+                </div>
+            </div>
+
+            <div id="product-grid" class="product-grid"></div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 bg-black/40 p-6 rounded-2xl border border-cyan-500/10">
+                <div class="col-span-1">
+                    <label
+                        class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Quantity</label>
+                    <input type="number" id="pay-qty" value="1" min="1" oninput="calculateTotal()"
+                        class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-center font-bold text-xl focus:border-cyan-400 focus:outline-none">
+                </div>
+                <div class="col-span-1 border-l border-white/10 pl-6">
+                    <label class="text-[10px] mono text-slate-500 uppercase tracking-widest block mb-2">Scanned
+                        UID</label>
+                    <p id="pay-uid"
+                        class="text-lg mono text-white truncate font-bold bg-white/5 px-3 py-2 rounded-lg text-center">
+                        --- --- ---</p>
+                </div>
+                <div class="col-span-2 flex items-end">
+                    <button onclick="handleTransaction('/pay', 'total-cost-display', 'pay-uid')"
+                        class="w-full h-14 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(34,211,238,0.3)]">
+                        Confirm Purchase & Receipt
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Receipt Modal -->
+    <div id="receipt-modal"
+        class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100] p-4">
+        <div class="bg-white rounded-[1rem] p-8 max-w-sm w-full shadow-2xl relative transform scale-95 transition-transform duration-300"
+            id="receipt-content">
+            <button onclick="closeReceipt()" class="absolute top-4 right-4 text-gray-400 hover:text-black">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            <div id="receipt-printable" class="text-black bg-white rounded-lg p-4">
+                <div class="text-center border-b border-dashed border-gray-300 pb-4 mb-4">
+                    <h2 class="text-2xl font-black tracking-tighter text-black">RFID<span
+                            class="italic text-gray-600"></span></h2>
+                    <p class="text-xs text-gray-500 mt-1 uppercase" id="receipt-date"></p>
+                </div>
+                <div class="space-y-3 text-sm font-mono border-b border-dashed border-gray-300 pb-4 mb-4">
+                    <div class="flex justify-between"><span>UID:</span><strong id="receipt-uid"></strong></div>
+                    <div class="flex justify-between"><span>Item:</span><strong id="receipt-item"></strong></div>
+                    <div class="flex justify-between"><span>Qty:</span><strong id="receipt-qty"></strong></div>
+                    <div class="flex justify-between"><span>Price:</span><strong id="receipt-price"></strong></div>
+                </div>
+                <div class="flex justify-between text-lg font-black">
+                    <span>TOTAL:</span>
+                    <span id="receipt-total"></span>
+                </div>
+                <div class="text-center mt-8 text-xs text-gray-400">
+                    <p>Thank you for your purchase!</p>
+                </div>
+            </div>
+            <div class="mt-6 flex gap-3">
+                <button onclick="printReceipt()"
+                    class="flex-1 bg-black text-white py-3 rounded-lg font-bold text-sm hover:bg-gray-800 transition-colors">Print
+                    PDF</button>
+                <button onclick="closeReceipt()"
+                    class="flex-1 bg-gray-200 text-black py-3 rounded-lg font-bold text-sm hover:bg-gray-300 transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io(`http://${window.location.hostname}:5001`);
+
+        const products = [
+            { id: 1, name: "AirPods Gen 2", price: 120000, img: "https://images.unsplash.com/photo-1588423770674-f2855ee47ba5?w=200" },
+            { id: 2, name: "AirPods Pro", price: 250000, img: "https://images.unsplash.com/photo-1588423770674-f2855ee47ba5?w=200" },
+            { id: 3, name: "AirPods Max", price: 550000, img: "https://images.unsplash.com/photo-1613040809024-b4ef7ba99bc3?w=200" },
+            { id: 4, name: "Sony XM5", price: 380000, img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200" },
+            { id: 5, name: "Bose QC45", price: 320000, img: "https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=200" },
+            { id: 6, name: "Beats Studio", price: 280000, img: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=200" },
+            { id: 7, name: "JBL Quantum", price: 85000, img: "https://images.unsplash.com/photo-1612444530582-fc66183b16f7?w=200" },
+            { id: 8, name: "Razer BlackShark", price: 110000, img: "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=200" }
+        ];
+
+        let selectedProduct = null;
+
+        function initGrid() {
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = products.map(p => `
+                <div class="product-card p-4 rounded-2xl text-center" onclick="selectProduct(${p.id}, this)">
+                    <img src="${p.img}" class="w-20 h-20 mx-auto rounded-xl mb-3 object-cover border border-white/5 shadow-lg">
+                    <p class="text-[11px] font-bold text-white truncate mb-1">${p.name}</p>
+                    <p class="text-xs text-cyan-400 font-black mono">${p.price.toLocaleString()}</p>
+                </div>
+            `).join('');
+            setTimeout(() => selectProduct(products[0].id, grid.children[0]), 100);
+        }
+
+        function selectProduct(id, element) {
+            document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedProduct = products.find(p => p.id === id);
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            if (!selectedProduct) return;
+            const qty = parseInt(document.getElementById('pay-qty').value) || 0;
+            document.getElementById('total-cost-display').innerText = selectedProduct.price * qty;
+        }
+
+        socket.on('update_ui', (data) => {
+            document.getElementById('pay-uid').innerText = data.uid;
+        });
+
+        async function handleTransaction(endpoint, inputId, uidId) {
+            const uid = document.getElementById(uidId).innerText;
+            const amountVal = document.getElementById(inputId).innerText;
+            const qty = parseInt(document.getElementById('pay-qty').value) || 0;
+
+            if (uid === "--- --- ---" || !amountVal || parseInt(amountVal) <= 0 || !selectedProduct) {
+                alert("🚨 Please scan card & select product!");
+                return;
+            }
+
+            try {
+                const response = await fetch(`http://${window.location.hostname}:5001${endpoint}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ uid: uid, amount: parseInt(amountVal) })
+                });
+                const res = await response.json();
+
+                if (response.ok) {
+                    generateReceipt(uid, selectedProduct, qty, amountVal, res.new_balance);
+                } else {
+                    alert(`❌ Error: ${res.error}`);
+                }
+            } catch (err) {
+                alert("📡 Connection error: Check if backend is running.");
+            }
+        }
+
+        function generateReceipt(uid, product, qty, total, newBal) {
+            document.getElementById('receipt-date').innerText = new Date().toLocaleString();
+            document.getElementById('receipt-uid').innerText = uid;
+            document.getElementById('receipt-item').innerText = product.name;
+            document.getElementById('receipt-qty').innerText = qty;
+            document.getElementById('receipt-price').innerText = product.price.toLocaleString() + ' RWF';
+            document.getElementById('receipt-total').innerText = parseInt(total).toLocaleString() + ' RWF';
+
+            const modal = document.getElementById('receipt-modal');
+            const content = document.getElementById('receipt-content');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+        }
+
+        function closeReceipt() {
+            const modal = document.getElementById('receipt-modal');
+            const content = document.getElementById('receipt-content');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+
+            document.getElementById('pay-uid').innerText = "--- --- ---";
+            document.getElementById('pay-qty').value = 1;
+            calculateTotal();
+        }
+
+        function printReceipt() {
+            const element = document.getElementById('receipt-printable');
+            html2canvas(element, { scale: 2 }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 150] });
+                const width = pdf.internal.pageSize.getWidth();
+                const height = (canvas.height * width) / canvas.width;
+                pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+                pdf.save(`Receipt_${document.getElementById('receipt-uid').innerText}_${Date.now()}.pdf`);
+            });
+        }
+
+        socket.on('connect', () => {
+            document.getElementById('conn-status-dot').className = "w-2 h-2 bg-cyan-400 rounded-full";
+            document.getElementById('conn-status-text').innerText = "System Live";
+            document.getElementById('conn-status-text').className = "text-[10px] font-bold text-cyan-400";
+        });
+
+        initGrid();
+    </script>
+</body>
+
+</html>
